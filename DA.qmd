@@ -25,5 +25,7 @@ df_cleaned = df_raw %>%
 threshold_missing = 0.5  # Allow maximum 50% missing
 df_cleaned = df_cleaned %>%
   filter(rowSums(is.na(.)) / ncol(.) <= threshold_missing)
+
+head(df_cleaned)
 ```
 
