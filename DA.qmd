@@ -30,5 +30,5 @@ head(df_cleaned)
 ```
 
 ```{r}
-head(df_clean)
+head(df)
 ```
