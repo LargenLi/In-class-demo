@@ -30,5 +30,9 @@ head(df_cleaned)
 ```
 
 ```{r}
+<<<<<<< HEAD
 head(df_clean)
+=======
+
+>>>>>>> eeff6ae3574ec713c1e1889d9f65739f9256a93b
 ```
