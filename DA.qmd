@@ -17,11 +17,12 @@ df = read_excel("C:\\Users\\17172\\Downloads\\Telco_customer_churn.xlsx")
 
 ```{r}
 colnames(df) = gsub(" ", "_", tolower(colnames(df)))
-df = df |> select(-c('churn_reason', 'customerid', 'count', 'country', 'city', 'zip_code', 'lat_long', 'latitude', 'longitude', 'churn_label'))
+df = df |> select(-c('churn_reason', 'customerid', 'count', 'country', 'city', 'zip_code', 'lat_long', 'latitude', 'longitude', 'churn_label', 'churn_score'))
 
 
 missing_summary = sapply(df, function(x) sum(is.na(x)))
 print(missing_summary)
+df = na.omit(df)
 ```
 
 
@@ -63,17 +64,17 @@ df_encoded = predict(dummies, newdata = df) |> as.data.frame()
 ```
 
 ```{r}
-numeric_cols_to_scale <- df_encoded %>%
-  select(where(is.numeric)) %>%
-  select(where(~ n_distinct(.) > 2)) %>%
+numeric_cols_to_scale = df_encoded |>
+  select(where(is.numeric)) |>
+  select(where(~ n_distinct(.) > 2)) |>
   colnames()
 
 
-preproc <- preProcess(df_encoded[, numeric_cols_to_scale], method = c("center", "scale"))
-scaled_numeric <- predict(preproc, df_encoded[, numeric_cols_to_scale])
+preproc = preProcess(df_encoded[, numeric_cols_to_scale], method = c("center", "scale"))
+scaled_numeric = predict(preproc, df_encoded[, numeric_cols_to_scale])
 
-df_final <- df_encoded
-df_final[, numeric_cols_to_scale] <- scaled_numeric
+df_final = df_encoded
+df_final[, numeric_cols_to_scale] = scaled_numeric
 ```
 
 ```{r}
