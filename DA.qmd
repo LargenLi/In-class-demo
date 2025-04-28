@@ -1,38 +1,73 @@
 ---
-title: "DA"
+title: "Data Cleaning & Feature Engineering"
 format: html
 ---
 
 ```{r}
 library(readxl)
 library(tidyverse)
-df_raw = read_excel('C:\\Users\\17172\\.cache\\kagglehub\\datasets\\abdallahwagih\\telco-customer-churn\\versions\\1\\Telco_customer_churn.xlsx')
+library(stringr)
+library(caret)
 
 ```
 
 ```{r}
-colnames(df_raw) = gsub(" ", "_", tolower(colnames(df_raw)))
+df = read_excel("C:\\Users\\17172\\Downloads\\Telco_customer_churn.xlsx")
+```
 
-# Step 4: Check missing values
-missing_summary = sapply(df_raw, function(x) sum(is.na(x)))
+```{r}
+colnames(df) = gsub(" ", "_", tolower(colnames(df)))
+df = df |> select(-c('churn_reason', 'customerid', 'count', 'country', 'city', 'zip_code', 'lat_long', 'latitude', 'longitude', 'churn_label'))
+
+
+missing_summary = sapply(df, function(x) sum(is.na(x)))
 print(missing_summary)
+```
 
-# Step 5: Convert character columns to factors
-df_cleaned = df_raw %>%
+
+```{r}
+
+df = df |>
+  mutate(avg_monthly_charge = ifelse(tenure_months == 0, 0, total_charges / tenure_months))
+
+# Flag customers with multiple services
+df = df |>
+  mutate(multiple_services = ifelse((phone_service == "Yes" & internet_service != "No"), 1, 0))
+```
+```{r}
+# Columns with 'Yes' and 'No' value.
+df = df |>
+  mutate(across(where(is.character), ~ ifelse(str_starts(., "No"), "No", .)))
+
+colnames(df) = str_trim(colnames(df))
+
+yes_no_cols = df |>
+  select(where(is.character)) |>
+  select(where(~ all(.x %in% c("Yes", "No")))) |>
+  colnames()
+
+df = df |>
+  mutate(across(all_of(yes_no_cols), ~ ifelse(. == "Yes", 1, 0)))
+```
+
+```{r}
+df = df |>
   mutate(across(where(is.character), as.factor))
 
-# Step 6: Remove rows with too many missing values
-threshold_missing = 0.5  # Allow maximum 50% missing
-df_cleaned = df_cleaned %>%
-  filter(rowSums(is.na(.)) / ncol(.) <= threshold_missing)
+df = df |>
+  select(where(~ n_distinct(.) > 1))
 
-head(df_cleaned)
+dummies = dummyVars(~ ., data = df)
+df_encoded = predict(dummies, newdata = df) |> as.data.frame()
+
 ```
 
 ```{r}
-<<<<<<< HEAD
-head(df_clean)
-=======
-
->>>>>>> eeff6ae3574ec713c1e1889d9f65739f9256a93b
+preproc = preProcess(df_encoded, method = c("center", "scale"))
+df_final = predict(preproc, df_encoded)
 ```
+
+```{r}
+write.csv(df_final, "cleaned_telco_data.csv", row.names = FALSE)
+```
+
