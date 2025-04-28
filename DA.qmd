@@ -63,11 +63,20 @@ df_encoded = predict(dummies, newdata = df) |> as.data.frame()
 ```
 
 ```{r}
-preproc = preProcess(df_encoded, method = c("center", "scale"))
-df_final = predict(preproc, df_encoded)
+numeric_cols_to_scale <- df_encoded %>%
+  select(where(is.numeric)) %>%
+  select(where(~ n_distinct(.) > 2)) %>%
+  colnames()
+
+
+preproc <- preProcess(df_encoded[, numeric_cols_to_scale], method = c("center", "scale"))
+scaled_numeric <- predict(preproc, df_encoded[, numeric_cols_to_scale])
+
+df_final <- df_encoded
+df_final[, numeric_cols_to_scale] <- scaled_numeric
 ```
 
 ```{r}
-write.csv(df_final, "cleaned_telco_data.csv", row.names = FALSE)
+# write.csv(df_final, "cleaned_telco_data.csv", row.names = FALSE)
 ```
 
