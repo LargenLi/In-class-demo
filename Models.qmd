@@ -3,3 +3,32 @@ title: "Models"
 format: html
 ---
 
+```{r}
+library(tidyverse)
+library(readr)
+library(rpart)
+library(rpart.plot)
+library(pdp)
+```
+```{r}
+df <- read_csv("cleaned_telco_data.csv")
+
+summary(df)
+```
+```{r}
+tree_model <- rpart(churn_value ~ ., data = df, method = "class")
+
+rpart.plot(tree_model)
+```
+```{r}
+
+```
+
+```{r}
+pdp_MM <- pdp::partial(tree_model, pred.var = "contract.Month-to-month")
+
+```
+```{r}
+names(df)
+```
+
