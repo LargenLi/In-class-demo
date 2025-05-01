@@ -9,14 +9,16 @@ library(readr)
 library(rpart)
 library(rpart.plot)
 library(pdp)
+library(randomForest)
+library(vip)
 ```
 ```{r}
-df <- read_csv("cleaned_telco_data.csv")
+df = read_csv("cleaned_telco_data.csv")
 
 summary(df)
 ```
 ```{r}
-tree_model <- rpart(churn_value ~ ., data = df, method = "class")
+tree_model = rpart(churn_value ~ ., data = df, method = "class")
 
 rpart.plot(tree_model)
 ```
@@ -25,10 +27,73 @@ rpart.plot(tree_model)
 ```
 
 ```{r}
-pdp_MM <- pdp::partial(tree_model, pred.var = "contract.Month-to-month")
+pdp_MM = pdp::partial(tree_model, pred.var = "contract.Month-to-month")
 
 ```
 ```{r}
 names(df)
+```
+```{r}
+# Fit a Random Forest model
+set.seed(123)
+rf_model = randomForest(churn_value ~ ., data = df, importance = TRUE)
+
+```
+
+```{r}
+# Get Gini importance from the RF model
+gini_df = as.data.frame(importance(rf_model)) %>%
+  rownames_to_column("Feature") %>%
+  arrange(desc(MeanDecreaseGini))  # sort by importance
+
+# Plot with ggplot2
+ggplot(gini_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Variable Importance (Gini Index)",
+    x = "Feature",
+    y = "Mean Decrease in Gini"
+  ) +
+  theme_minimal(base_size = 12)
+
+```
+
+```{r}
+
+df$churn_value = as.factor(df$churn_value)
+
+colnames(df) = make.names(colnames(df))
+
+train_x = df[, setdiff(names(df), "churn_value")]
+
+# Plot permutation-based importance
+vip(rf_model,
+    method = "permute",
+    train = train_x,
+    target = df$churn_value,
+    metric = "roc_auc",
+    pred_wrapper = function(object, newdata) {
+      predict(object, newdata = newdata, type = "prob")[, "1"]
+    },
+    nsim = 10,
+    num_features = ncol(train_x))
+
+```
+```{r}
+# Define prediction wrapper to return predicted class labels
+pred_class = function(object, newdata) {
+  factor(predict(object, newdata = newdata, type = "response"), levels = c(0, 1))
+}
+
+# Generate VIP plot using accuracy
+vip(rf_model,
+    method = "permute",
+    train = train_x,                
+    target = df$churn_value,           
+    metric = "accuracy",               
+    pred_wrapper = pred_class,        
+    nsim = 10,                  
+    num_features = ncol(train_x))     
 ```
 
