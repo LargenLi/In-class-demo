@@ -1,5 +1,5 @@
 ---
-title: "Models"
+title: "Random Forest Models"
 format:
   html:
     embed-resources: true
@@ -13,28 +13,19 @@ library(rpart.plot)
 library(pdp)
 library(randomForest)
 library(vip)
+library(reshape2)
 ```
 ```{r}
 df = read_csv("cleaned_telco_data.csv")
-
-summary(df)
 ```
 ```{r}
 tree_model = rpart(churn_value ~ ., data = df, method = "class")
 
 rpart.plot(tree_model)
 ```
-```{r}
 
-```
 
-```{r}
-pdp_MM = pdp::partial(tree_model, pred.var = "contract.Month-to-month")
 
-```
-```{r}
-names(df)
-```
 ```{r}
 # Fit a Random Forest model
 set.seed(123)
@@ -47,8 +38,8 @@ rf_model = randomForest(churn_value ~ ., data = df, importance = TRUE)
 
 ```{r}
 # Get Gini importance from the RF model
-gini_df = as.data.frame(importance(rf_model)) %>%
-  rownames_to_column("Feature") %>%
+gini_df = as.data.frame(importance(rf_model)) |>
+  rownames_to_column("Feature") |>
   arrange(desc(MeanDecreaseGini))  # sort by importance
 
 # Plot with ggplot2
@@ -63,25 +54,8 @@ ggplot(gini_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini
   theme_minimal(base_size = 12)
 
 ```
-
 ```{r}
-
 train_x = df[, setdiff(names(df), "churn_value")]
-
-# Generate VIP plot using roc
-vip(rf_model,
-    method = "permute",
-    train = train_x,
-    target = df$churn_value,
-    metric = "roc_auc",
-    pred_wrapper = function(object, newdata) {
-      predict(object, newdata = newdata, type = "prob")[, "1"]
-    },
-    nsim = 10,
-    num_features = ncol(train_x))
-
-```
-```{r}
 # Define prediction wrapper to return predicted class labels
 pred_class = function(object, newdata) {
   factor(predict(object, newdata = newdata, type = "response"), levels = c(0, 1))
@@ -96,5 +70,130 @@ vip(rf_model,
     pred_wrapper = pred_class,        
     nsim = 10,                  
     num_features = ncol(train_x))     
+```
+```{r}
+# Generate VIP plot using roc
+vip(rf_model,
+    method = "permute",
+    train = train_x,
+    target = df$churn_value,
+    metric = "roc_auc",
+    pred_wrapper = function(object, newdata) {
+      predict(object, newdata = newdata, type = "prob")[, "1"]
+    },
+    nsim = 10,
+    num_features = ncol(train_x))
+
+```
+
+```{r}
+
+train_x = df[, setdiff(names(df), "churn_value")]
+
+# Generate VIP plot using roc
+vip(rf_model,
+    method = "permute",
+    train = train_x,
+    target = df$churn_value,
+    metric = "roc_auc",
+    event_level = "second",
+    pred_wrapper = function(object, newdata) {
+      predict(object, newdata = newdata, type = "prob")[, "1"]
+    },
+    nsim = 10,
+    num_features = ncol(train_x))
+
+```
+
+```{r}
+# ---- Gini Importance ----
+gini_df = as.data.frame(importance(rf_model)) |>
+  rownames_to_column("Feature") |>
+  select(Feature, Gini = MeanDecreaseGini)
+
+# ---- ROC AUC Permutation ----
+roc_vi = vi(
+  rf_model,
+  method = "permute",
+  train = train_x,
+  target = df$churn_value,
+  metric = "roc_auc",
+  event_level = "second",
+  pred_wrapper = function(object, newdata) {
+    predict(object, newdata = newdata, type = "prob")[, "1"]
+  },
+  nsim = 10
+) |> select(Feature = Variable, ROC_AUC = Importance)
+
+# ---- Accuracy Permutation ----
+pred_class = function(object, newdata) {
+  factor(predict(object, newdata, type = "response"), levels = c(0, 1))
+}
+
+acc_vi = vi(
+  rf_model,
+  method = "permute",
+  train = train_x,
+  target = df$churn_value,
+  metric = "accuracy",
+  pred_wrapper = pred_class,
+  nsim = 10
+) |> select(Feature = Variable, Accuracy = Importance)
+
+# ---- Merge All ----
+vi_comparison = reduce(list(gini_df, roc_vi, acc_vi), full_join, by = "Feature") |>
+  arrange(desc(Gini))
+```
+```{r}
+# ---- Plot ----
+vi_long = vi_comparison |>
+  pivot_longer(cols = -Feature, names_to = "Metric", values_to = "Importance")
+
+vi_scaled = vi_long |>
+  group_by(Metric) |>
+  mutate(ScaledImportance = (Importance - min(Importance)) / (max(Importance) - min(Importance)))
+
+ggplot(vi_scaled, aes(x = reorder(Feature, ScaledImportance), y = ScaledImportance, fill = Metric)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Normalized Feature Importance Comparison",
+    x = "Feature",
+    y = "Normalized Importance (0–1)"
+  ) +
+  theme_minimal(base_size = 12)
+```
+```{r}
+ggplot(vi_long, aes(x = reorder(Feature, Importance), y = Importance)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  facet_wrap(~ Metric, scales = "free_x") +
+  labs(
+    title = "Feature Importance by Metric",
+    x = "Feature",
+    y = "Importance"
+  ) +
+  theme_minimal(base_size = 12)
+
+```
+```{r}
+vi_corr = vi_comparison |>
+  select(-Feature) |>
+  cor(use = "complete.obs")
+
+# Convert to long format for ggplot2
+vi_corr_long = melt(vi_corr)
+
+# Plot heatmap
+ggplot(vi_corr_long, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(value, 2)), color = "black", size = 5) +
+  scale_fill_gradient2(low = "steelblue", high = "darkred", mid = "white",
+                       midpoint = 0.5, limit = c(0, 1), space = "Lab",
+                       name = "Correlation") +
+  theme_minimal(base_size = 14) +
+  labs(title = "Correlation of Feature Importance Metrics",
+       x = "", y = "") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 ```
 
