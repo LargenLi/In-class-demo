@@ -16,11 +16,8 @@ book:
       This book was built with <a href="https://quarto.org/">Quarto</a>.
   repo-actions: [edit, issue]
   chapters:
-    - index.qmd
     - DA.qmd
     - Models.qmd
-    - d3graph.qmd
-    - conclusion.qmd
 
 format:
   html:
