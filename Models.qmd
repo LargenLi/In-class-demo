@@ -146,19 +146,6 @@ vi_comparison = reduce(list(gini_df, roc_vi, acc_vi), full_join, by = "Feature")
 vi_long = vi_comparison |>
   pivot_longer(cols = -Feature, names_to = "Metric", values_to = "Importance")
 
-vi_scaled = vi_long |>
-  group_by(Metric) |>
-  mutate(ScaledImportance = (Importance - min(Importance)) / (max(Importance) - min(Importance)))
-
-ggplot(vi_scaled, aes(x = reorder(Feature, ScaledImportance), y = ScaledImportance, fill = Metric)) +
-  geom_col(position = "dodge") +
-  coord_flip() +
-  labs(
-    title = "Normalized Feature Importance Comparison",
-    x = "Feature",
-    y = "Normalized Importance (0–1)"
-  ) +
-  theme_minimal(base_size = 12)
 ```
 ```{r}
 ggplot(vi_long, aes(x = reorder(Feature, Importance), y = Importance)) +
@@ -192,5 +179,17 @@ ggplot(vi_corr_long, aes(x = Var1, y = Var2, fill = value)) +
   labs(title = "Correlation of Feature Importance Metrics",
        x = "", y = "") +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+
+```{r}
+var = colnames(train_x)
+
+pdp_df = map(var, function(x)partial(rf_model,pred.var = x))|>
+  map_dfr(pivot_longer, cols =1)
+
+ggplot(pdp_df, aes(x = value, y = yhat))+
+  geom_line()
+  facet_wrap(~name, scales= 'free_x')
+
 ```
 
