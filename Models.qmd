@@ -1,6 +1,8 @@
 ---
 title: "Models"
-format: html
+format:
+  html:
+    embed-resources: true
 ---
 
 ```{r}
@@ -36,6 +38,9 @@ names(df)
 ```{r}
 # Fit a Random Forest model
 set.seed(123)
+df$churn_value = as.factor(df$churn_value)
+
+colnames(df) = make.names(colnames(df))
 rf_model = randomForest(churn_value ~ ., data = df, importance = TRUE)
 
 ```
@@ -61,13 +66,9 @@ ggplot(gini_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini
 
 ```{r}
 
-df$churn_value = as.factor(df$churn_value)
-
-colnames(df) = make.names(colnames(df))
-
 train_x = df[, setdiff(names(df), "churn_value")]
 
-# Plot permutation-based importance
+# Generate VIP plot using roc
 vip(rf_model,
     method = "permute",
     train = train_x,
