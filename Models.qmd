@@ -1,7 +1,9 @@
-# Random Forest
+# Tree-Based Models & Variable Importance
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 ```
+
 ```{r}
 library(tidyverse)
 library(readr)
@@ -12,16 +14,24 @@ library(randomForest)
 library(vip)
 library(reshape2)
 ```
+
+## Data loaded
+
 ```{r}
 df = read_csv("cleaned_telco_data.csv")
 ```
+
+## Single Tree Model
+
 ```{r}
 tree_model = rpart(churn_value ~ ., data = df, method = "class", cp = 0.01)
 
 rpart.plot(tree_model, extra = 1)
 ```
 
+Since this study is would be mainly focused on the variable importance of tree-based model, I start by fitting the dataset by a single decision tree model.
 
+Due to the algorithm, the single decision tree offers a highly interpretable model where feature importance is directly observable from the tree structure. Features used near the top of the tree typically split the data into the largest and most distinct groups, and are thus considered the most important. In this case, we have
 
 ```{r}
 # Fit a Random Forest model
@@ -52,7 +62,6 @@ ggplot(gini_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini
 
 ```
 
-
 ```{r}
 train_x = df[, setdiff(names(df), "churn_value")]
 
@@ -70,6 +79,7 @@ pdp_df <- pdp_df %>%
   left_join(pdp_importance, by = "name") %>%
   arrange(desc(pdp_sd))
 ```
+
 ```{r}
 # Step 5: Plot
 ggplot(pdp_df, aes(x = value, y = yhat)) +
@@ -82,6 +92,7 @@ ggplot(pdp_df, aes(x = value, y = yhat)) +
   ) +
   theme_minimal(base_size = 12)
 ```
+
 ```{r}
 ggplot(pdp_importance, aes(x = reorder(name, pdp_sd), y = pdp_sd)) +
   geom_col(fill = "steelblue") +
@@ -93,6 +104,7 @@ ggplot(pdp_importance, aes(x = reorder(name, pdp_sd), y = pdp_sd)) +
   ) +
   theme_minimal(base_size = 12)
 ```
+
 ```{r}
 is_binary <- function(x) length(unique(x)) == 2 && all(unique(x) %in% c(0, 1))
 
@@ -112,6 +124,7 @@ con_df <- con_df %>%
   left_join(con_importance, by = "name") %>%
   arrange(desc(pdp_sd))
 ```
+
 ```{r}
 # Step 5: Plot
 ggplot(con_df, aes(x = value, y = yhat)) +
@@ -125,6 +138,7 @@ ggplot(con_df, aes(x = value, y = yhat)) +
   theme_minimal(base_size = 12)
 
 ```
+
 ```{r}
 # Define prediction wrapper to return predicted class labels
 pred_class = function(object, newdata) {
@@ -141,6 +155,7 @@ vip(rf_model,
     nsim = 10,                  
     num_features = ncol(train_x))     
 ```
+
 ```{r}
 # Generate VIP plot using roc
 vip(rf_model,
@@ -214,12 +229,14 @@ acc_vi = vi(
 vi_comparison = reduce(list(gini_df, roc_vi, acc_vi), full_join, by = "Feature") |>
   arrange(desc(Gini))
 ```
+
 ```{r}
 # ---- Plot ----
 vi_long = vi_comparison |>
   pivot_longer(cols = -Feature, names_to = "Metric", values_to = "Importance")
 
 ```
+
 ```{r}
 ggplot(vi_long, aes(x = reorder(Feature, Importance), y = Importance)) +
   geom_col(fill = "steelblue") +
@@ -233,6 +250,7 @@ ggplot(vi_long, aes(x = reorder(Feature, Importance), y = Importance)) +
   theme_minimal(base_size = 12)
 
 ```
+
 ```{r}
 vi_corr = vi_comparison |>
   select(-Feature) |>
@@ -253,4 +271,3 @@ ggplot(vi_corr_long, aes(x = Var1, y = Var2, fill = value)) +
        x = "", y = "") +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 ```
-
