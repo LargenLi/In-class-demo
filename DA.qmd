@@ -4,7 +4,6 @@
 knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 ```
 
-
 ```{r}
 library(readxl)
 library(tidyverse)
@@ -13,6 +12,8 @@ library(caret)
 
 ```
 
+## Data Import and Initial Filtering
+
 ```{r}
 df = read_excel("Telco_customer_churn.xlsx")
 ```
@@ -20,23 +21,43 @@ df = read_excel("Telco_customer_churn.xlsx")
 ```{r}
 colnames(df) = gsub(" ", "_", tolower(colnames(df)))
 df = df |> select(-c('churn_reason', 'customerid', 'count', 'country', 'city', 'zip_code', 'lat_long', 'latitude', 'longitude', 'churn_label', 'churn_score'))
+```
 
+Column names were standardized to lowercase with underscores. Irrelevant or redundant columns were removed, including identifiers (e.g., customerid), geolocation (e.g., latitude, longitude), and derived churn labels (e.g., churn_label). Since only churned row would have churn reason, the churn_reason is also dropped.
+
+## Missing value
+
+```{r}
 
 missing_summary = sapply(df, function(x) sum(is.na(x)))
 print(missing_summary)
 df = na.omit(df)
 ```
 
+Rows with missing values are dropped.
+
+## Feature Engineering
 
 ```{r}
-
+# Average monthly charge
 df = df |>
   mutate(avg_monthly_charge = ifelse(tenure_months == 0, 0, total_charges / tenure_months))
 
-# Flag customers with multiple services
+# Multiple services
 df = df |>
   mutate(multiple_services = ifelse((phone_service == "Yes" & internet_service != "No"), 1, 0))
 ```
+
+Two new features (Average monthly charge & Multiple services) are created.
+
+The variable avg_monthly_charge was created by dividing total_charges by tenure_months. This provides a time-normalized view of how much a customer spends on average per month.
+
+And multiple_services flags customers who are subscribed to both phone and internet services. This binary indicator captures service bundling, which is often a sign of higher customer commitment.
+
+Since this study is mainly focus on tree-based models and those models can handle multicollinearity naturally, I did not drop the original features.
+
+## Binary Encoding of Yes/No Columns
+
 ```{r}
 # Columns with 'Yes' and 'No' value.
 df = df |>
@@ -53,6 +74,10 @@ df = df |>
   mutate(across(all_of(yes_no_cols), ~ ifelse(. == "Yes", 1, 0)))
 ```
 
+To prepare for models in the later section, all "No internet" or "No phone" values were simplified to "No". Then, binary columns with "Yes"/"No" values were converted to 1/0 format.
+
+## Factor Encoding and Dummy Variables
+
 ```{r}
 df = df |>
   mutate(across(where(is.character), as.factor))
@@ -64,6 +89,8 @@ dummies = dummyVars(~ ., data = df)
 df_encoded = predict(dummies, newdata = df) |> as.data.frame()
 
 ```
+
+Remaining categorical variables were converted to factors. Features with only one unique level were removed. All multi-class categorical variables were one-hot encoded using caret::dummyVars.
 
 ```{r}
 numeric_cols_to_scale = df_encoded |>
@@ -79,9 +106,9 @@ df_final = df_encoded
 df_final[, numeric_cols_to_scale] = scaled_numeric
 ```
 
+## Save the Processed Dataset
+
 ```{r}
 # write.csv(df_final, "scaled_telco_data.csv", row.names = FALSE)
 # write.csv(df_encoded, "cleaned_telco_data.csv", row.names = FALSE)
 ```
-
-
