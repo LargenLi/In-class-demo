@@ -31,7 +31,7 @@ rpart.plot(tree_model, extra = 1)
 
 Since this study is would be mainly focused on the variable importance of tree-based model, I start by fitting the dataset by a single decision tree model.
 
-Due to the algorithm, the single decision tree offers a highly interpretable model where feature importance is directly observable from the tree structure. Features used near the top of the tree typically split the data into the largest and most distinct groups, and are thus considered the most important. In this case, we have
+Due to the algorithm, the single decision tree offers a highly interpretable model where feature importance is directly observable from the tree structure. Features used near the top of the tree typically split the data into the largest and most distinct groups, and are thus considered the most important. In this case, we have 
 
 ```{r}
 # Fit a Random Forest model
