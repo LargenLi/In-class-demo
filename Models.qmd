@@ -16,9 +16,9 @@ library(reshape2)
 df = read_csv("cleaned_telco_data.csv")
 ```
 ```{r}
-tree_model = rpart(churn_value ~ ., data = df, method = "class")
+tree_model = rpart(churn_value ~ ., data = df, method = "class", cp = 0.01)
 
-rpart.plot(tree_model)
+rpart.plot(tree_model, extra = 1)
 ```
 
 
@@ -51,8 +51,81 @@ ggplot(gini_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini
   theme_minimal(base_size = 12)
 
 ```
+
+
 ```{r}
 train_x = df[, setdiff(names(df), "churn_value")]
+
+var = colnames(train_x)
+
+pdp_df = map(var, function(x)partial(rf_model,pred.var = x))|>
+  map_dfr(pivot_longer, cols =1)
+
+pdp_importance <- pdp_df %>%
+  group_by(name) %>%
+  summarise(pdp_sd = sd(yhat), .groups = "drop")
+
+# Step 4: Join and reorder factor levels
+pdp_df <- pdp_df %>%
+  left_join(pdp_importance, by = "name") %>%
+  arrange(desc(pdp_sd))
+```
+```{r}
+# Step 5: Plot
+ggplot(pdp_df, aes(x = value, y = yhat)) +
+  geom_line(color = "steelblue") +
+  facet_wrap(~ name, scales = "free_x") +
+  labs(
+    title = "Partial Dependence Plots Ordered by PDP Effect Size (sd of yhat)",
+    x = "Feature Value",
+    y = "Predicted Churn Probability"
+  ) +
+  theme_minimal(base_size = 12)
+```
+```{r}
+ggplot(pdp_importance, aes(x = reorder(name, pdp_sd), y = pdp_sd)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Stdv. of y hat",
+    x = "Name",
+    y = "sd(yhat)"
+  ) +
+  theme_minimal(base_size = 12)
+```
+```{r}
+is_binary <- function(x) length(unique(x)) == 2 && all(unique(x) %in% c(0, 1))
+
+continuous_vars <- train_x %>%
+  select(where(~ !is_binary(.))) %>%
+  colnames()
+
+con_df = map(continuous_vars, function(x)partial(rf_model,pred.var = x))|>
+  map_dfr(pivot_longer, cols =1)
+
+con_importance <- con_df %>%
+  group_by(name) %>%
+  summarise(pdp_sd = sd(yhat), .groups = "drop")
+
+# Step 4: Join and reorder factor levels
+con_df <- con_df %>%
+  left_join(con_importance, by = "name") %>%
+  arrange(desc(pdp_sd))
+```
+```{r}
+# Step 5: Plot
+ggplot(con_df, aes(x = value, y = yhat)) +
+  geom_line(color = "steelblue") +
+  facet_wrap(~ name, scales = "free_x") +
+  labs(
+    title = "Partial Dependence Plots for Contin",
+    x = "Feature Value",
+    y = "Predicted Churn Probability"
+  ) +
+  theme_minimal(base_size = 12)
+
+```
+```{r}
 # Define prediction wrapper to return predicted class labels
 pred_class = function(object, newdata) {
   factor(predict(object, newdata = newdata, type = "response"), levels = c(0, 1))
@@ -179,17 +252,5 @@ ggplot(vi_corr_long, aes(x = Var1, y = Var2, fill = value)) +
   labs(title = "Correlation of Feature Importance Metrics",
        x = "", y = "") +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-```
-
-```{r}
-var = colnames(train_x)
-
-pdp_df = map(var, function(x)partial(rf_model,pred.var = x))|>
-  map_dfr(pivot_longer, cols =1)
-
-ggplot(pdp_df, aes(x = value, y = yhat))+
-  geom_line()
-  facet_wrap(~name, scales= 'free_x')
-
 ```
 

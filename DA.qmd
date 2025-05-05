@@ -14,7 +14,7 @@ library(caret)
 ```
 
 ```{r}
-df = read_excel("C:\\Users\\17172\\Downloads\\Telco_customer_churn.xlsx")
+df = read_excel("Telco_customer_churn.xlsx")
 ```
 
 ```{r}
@@ -80,6 +80,8 @@ df_final[, numeric_cols_to_scale] = scaled_numeric
 ```
 
 ```{r}
-# write.csv(df_final, "cleaned_telco_data.csv", row.names = FALSE)
+# write.csv(df_final, "scaled_telco_data.csv", row.names = FALSE)
+# write.csv(df_encoded, "cleaned_telco_data.csv", row.names = FALSE)
 ```
+
 
