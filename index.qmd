@@ -1,1 +1,15 @@
 # Introduction
+
+**"How do different interpretation methods for tree-based models—Gini importance, permutation-based metrics, and partial dependence plots—compare in identifying the most influential features in customer churn prediction?"**
+
+Interpreting machine learning models is important for creating trust and informing data-driven decision-making in applications such as churn prediction when knowing why customers are churning is as valuable as knowing which customers are going to churn.
+
+This project explore how diferent interpretation methods order feature importance in tree-based models using a data on customer churn. Although models such as decision trees and random forests are interpretable by nature, the measurement of importance might differ significantly.
+
+I contrast four techniques: Gini importance, Accuracy as well as ROC AUC-based permutation importance, and PDP-based importance. Each of the techniques highlights a different facet—everything from contribution to the underlying structure to prediction accuracy or probability ranking impact to marginal effect visualization. Applying these to the same model, I hope to establish their strengths and weaknesses as well as how their results compare or differ.
+
+## Data:
+
+-   Source: Telco Customer Churn (https://www.kaggle.com/datasets/abdallahwagih/telco-customer-churn)
+
+-   Includes customer demographics, subscription information, churn data, churn reasons.

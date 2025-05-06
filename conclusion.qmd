@@ -1,1 +1,23 @@
 # Conclusion
+
+The analysis reveals that although core features such as "tenure_months", "total_charges", and "contract.Month.to.month" are universally important in all approaches (expect PDP), striking differences appear in the way each method ranks importance.
+
+-   Gini prefers high-variance, continuous features.
+
+-   Permutation (Accuracy) assigns features beneficial for binary classification.
+
+-   Permutation (ROC AUC) focuses on features that enhance ranking of churners.
+
+-   PDP tends to stress binary variables and may be multicollinearity-prone.
+
+Even when there are high levels of overall correlation between approaches, the differences in rankings highlight the need to use several interpretation strategies to acquire a balanced view of model performance.
+
+## Citations:
+
+<https://statisticsglobe.com/cor-function-shows-only-na-and-one-in-r>
+
+<https://koalaverse.github.io/vip/articles/vip.html#a-classification-example>
+
+<https://www.kaggle.com/code/amycorona/predicting-churn-with-a-random-forest-classifier>
+
+<https://www.numberanalytics.com/blog/7-key-insights-area-under-roc-curve>

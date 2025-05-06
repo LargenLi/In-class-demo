@@ -6,11 +6,11 @@ execute:
   echo: true
 
 book:
-  title: "Predicting Customer Churn"
+  title: "Comparing Interpretation Methods for Feature Importance"
   author:
     - Jingxi Li (jl6876)
   repo-url: https://github.com/LargenLi/In-class-demo.git
-  date: today
+  date: May 5, 2025
   page-footer:
     right: |
       This book was built with <a href="https://quarto.org/">Quarto</a>.
@@ -19,7 +19,7 @@ book:
     - index.qmd
     - DA.qmd
     - Models.qmd
-    
+    - conclusion.qmd
 
 format:
   html:

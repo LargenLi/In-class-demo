@@ -68,11 +68,9 @@ ggplot(gini_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini
 
 In order to make the result more stable and reliable, I fit the data with a random forest model. Similar to decision tree, random Forests is also an an intrinsically interpretable model. It's feature importance using the Mean Decrease in Gini Index, which reflects how much each feature contributes to improving node purity across all trees.
 
-This graph presents the Gini-based variable importance from random forest model. Unlike the the single tree model, most of all of top features of random forest are continous and monetary-derived. This is expected because these features directly reflect the customer’s economic relationship with the business, which is often the strongest signal of satisfaction and risk.
+This graph presents the Gini-based variable importance from random forest model. Unlike the the single tree model, most of all of top features of random forest are continuous and monetary-derived. This is expected because these features directly reflect the customer’s economic relationship with the business, which is often the strongest signal of satisfaction and risk.
 
-Notice that total_charges and tenure_months have higher mean decrease in Gini than average_monthly_charge and monthly_charges. This might indicate that long-term customers tend to have different churn behaviors than newer ones.
-
-Other than top 5 features that are monetary and continous, contract.Month-to-month, internet_service.Fiber optic (the top 2 features of single tree model) have highest mean decrease in Gini.
+Other than top 5 features that are monetary and continuous, contract.Month-to-month, internet_service.Fiber optic (the top 2 features of single tree model) have highest mean decrease in Gini.
 
 ### Partial Dependence Plot
 
@@ -151,7 +149,7 @@ ggplot(con_df, aes(x = value, y = yhat)) +
   geom_line(color = "steelblue") +
   facet_wrap(~ name, scales = "free_x") +
   labs(
-    title = "Partial Dependence Plots (continous features)",
+    title = "Partial Dependence Plots (continuous features)",
     x = "Feature Value",
     y = "Predicted Churn Probability"
   ) +
@@ -161,7 +159,7 @@ ggplot(con_importance, aes(x = reorder(name, pdp_sd), y = pdp_sd)) +
   geom_col(fill = "steelblue") +
   coord_flip() +
   labs(
-    title = "PDP Importance (continous features)",
+    title = "PDP Importance (continuous features)",
     x = "Features",
     y = "sd(yhat)"
   ) +
@@ -209,7 +207,7 @@ Therefore, I drop all the correlated monetary features expected total_charges (w
 
 ### Permutation-Based Variable Importance
 
-To better handle the binary features, I used permutation-based methods to compute variable importance. Permutation importance are  measured by shuffling the values of a feature and see how much does it harm the model’s predictive performance. Since the predicted varible is binary and imbalanced, I decided to use "accuracy" and "roc_auc" as my metric.
+To better handle the binary features, I used permutation-based methods to compute variable importance. Permutation importance are measured by shuffling the values of a feature and see how much does it harm the model’s predictive performance. Since the predicted varible is binary and imbalanced, I decided to use "accuracy" and "roc_auc" as my metric.
 
 ```{r}
 train_x = df[, setdiff(names(df), "churn_value")]
@@ -229,10 +227,8 @@ vip(rf_model,
     nsim = 10,                  
     num_features = ncol(train_x))     
 ```
-The tenure_months, contract.Month.to.month, and total_charges, internet_service.Fiber.optic, monthly_charges are the top 5 most important predictors of the "accuracy". These features cause the greatest drop in model accuracy when they are shuffled. Interestingly, the top 5 features this time include both continous and binary features. And the thoes 5 features are in the top 5 feature list of either Gini of PDP.
 
-
-
+The "tenure_months", "contract.Month.to.month", "total_charges", "internet_service.Fiber.optic", and "monthly_charges" are the top 5 most important predictors of the "accuracy". These features cause the greatest drop in model accuracy when they are shuffled. Interestingly, the top 5 features this time include both continous and binary features. And the thoes 5 features are in the top 5 feature list of either Gini of PDP.
 
 ```{r}
 # Generate VIP plot using roc
@@ -248,7 +244,10 @@ vip(rf_model,
     num_features = ncol(train_x))
 
 ```
-The x-axis of the "roc_auc" graph is negative. It is counterintuitive because how can the model performace improves after shuffling the values of feature. 
+
+The x-axis of the "roc_auc" graph is negative. It is counter intuitive because how can the model performace improves after shuffling the values of feature.
+
+According to instruction book of the vip Package, "roc_auc" metric would treat one of outcomes of the predicted as the “event” of interest. And the default event level is always the first class label in alphabetical or numerical order. So set event_level to "second" would flip graph and solve the problem.
 
 ```{r}
 
@@ -267,6 +266,8 @@ vip(rf_model,
     num_features = ncol(train_x))
 
 ```
+
+The features like "tenure_month" and "total_charges" still have very high importance under "roc_auc" metric. But the importance of key binary features in other methods ("contract.Month.to.month", "internet_service.Fiber.optic") decrease. This difference is because accuracy metric measures how frequently the predictions are correct, so features that improve threshold-based classification would be considered as more important. However, "roc_auc" measures how the model ranks the churners higher than the non-churners, so features that improve overall risk differentiation would be considered as more important, even if they do not impact binary decisions directly.
 
 ```{r}
 # ---- Gini Importance ----
@@ -306,16 +307,11 @@ acc_vi = vi(
 # ---- Merge All ----
 vi_comparison = reduce(list(gini_df, roc_vi, acc_vi), full_join, by = "Feature") |>
   arrange(desc(Gini))
-```
 
-```{r}
 # ---- Plot ----
 vi_long = vi_comparison |>
   pivot_longer(cols = -Feature, names_to = "Metric", values_to = "Importance")
 
-```
-
-```{r}
 ggplot(vi_long, aes(x = reorder(Feature, Importance), y = Importance)) +
   geom_col(fill = "steelblue") +
   coord_flip() +
@@ -330,22 +326,35 @@ ggplot(vi_long, aes(x = reorder(Feature, Importance), y = Importance)) +
 ```
 
 ```{r}
-vi_corr = vi_comparison |>
-  select(-Feature) |>
+vi_normalized <- vi_comparison |>
+  mutate(across(-Feature, ~ (. - min(.)) / (max(.) - min(.)), .names = "{.col}_norm"))
+
+# ---- Compute Correlation Matrix on Normalized Scores ----
+vi_corr_normalized <- vi_normalized |>
+  select(ends_with("_norm")) |>
+  setNames(c("Gini", "ROC_AUC", "Accuracy")) |>  # Optional: clean up column names
   cor(use = "complete.obs")
 
-# Convert to long format for ggplot2
-vi_corr_long = melt(vi_corr)
+# ---- Convert to Long Format for Plotting ----
+vi_corr_long_norm <- reshape2::melt(vi_corr_normalized)
 
-# Plot heatmap
-ggplot(vi_corr_long, aes(x = Var1, y = Var2, fill = value)) +
+# ---- Plot Normalized Heatmap ----
+ggplot(vi_corr_long_norm, aes(x = Var1, y = Var2, fill = value)) +
   geom_tile(color = "white") +
   geom_text(aes(label = round(value, 2)), color = "black", size = 5) +
   scale_fill_gradient2(low = "steelblue", high = "darkred", mid = "white",
                        midpoint = 0.5, limit = c(0, 1), space = "Lab",
                        name = "Correlation") +
   theme_minimal(base_size = 14) +
-  labs(title = "Correlation of Feature Importance Metrics",
+  labs(title = "Correlation Heatmap of Feature Importance Methods",
        x = "", y = "") +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 ```
+
+Finally, I visualized Gini, ROC AUC permutation, and Accuracy permutation importance all together in a faceted bar and correlation heatmap. The shape of the faceted graphs look very similar and all the values in the heatmap are greater than 0.86. This suggest that the most and less important features determined by all three methods are very much overlapped.
+
+Features like "tenure_months", "total_charges", and "contract.Month.to.month" likely dominate in all metrics.In contrast, features such as "phone_service", "multiple_services", "payment_method.Mailed.check", and "payment_method.Bank.transfer.automatic" consistently appear at the bottom across all metrics.
+
+Interestingly, total_charges and tenure_months have higher importance than average_monthly_charge and monthly_charges across all three methods. This is a clear sign that long-term customers tend to have different churn behaviors than newer ones. Customers who have stayed longer or spent more over time may likely exhibit distinct patterns of loyalty or dissatisfaction.
+
+Similarly, "contract.Month.to.month" ranks high in both Gini and Accuracy, underscoring its role in classification thresholds. It indicates that short-term contracts might make customers more flexible and prone to churn. However, it ranks slightly lower in ROC AUC, possibly because it contributes less to improve overall risk differentiation.
