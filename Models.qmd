@@ -21,7 +21,7 @@ library(reshape2)
 df = read_csv("cleaned_telco_data.csv")
 ```
 
-## Single Tree Model
+## Decision Tree Model
 
 ```{r}
 tree_model = rpart(churn_value ~ ., data = df, method = "class", cp = 0.01)
@@ -31,7 +31,11 @@ rpart.plot(tree_model, extra = 1)
 
 Since this study is would be mainly focused on the variable importance of tree-based model, I start by fitting the dataset by a single decision tree model.
 
-Due to the algorithm, the single decision tree offers a highly interpretable model where feature importance is directly observable from the tree structure. Features used near the top of the tree typically split the data into the largest and most distinct groups, and are thus considered the most important. In this case, we have 
+Due to the algorithm, the single decision tree offers a highly interpretable model where feature importance is directly observable from the tree structure. Features used near the top of the tree typically split the data into the largest and most distinct groups, and are thus considered the most important. In this case, we have the top features would be contract.Month-to-month, internet_service.Fiber optic, and tenure_month. Unexpectedly, none of the include the any information about the amount of money charged.
+
+However, single decision tree model is very likely overfitting the training set, especially when we have 30 features in our dataset. There is a big chance that important features are ignored. Since the a little change in the training set can lead to a very different tree structure, the variance importance observed from a single tree model is very unstable.
+
+## Random Forest Model
 
 ```{r}
 # Fit a Random Forest model
@@ -49,7 +53,7 @@ gini_df = as.data.frame(importance(rf_model)) |>
   rownames_to_column("Feature") |>
   arrange(desc(MeanDecreaseGini))  # sort by importance
 
-# Plot with ggplot2
+
 ggplot(gini_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini)) +
   geom_col(fill = "steelblue") +
   coord_flip() +
@@ -61,6 +65,16 @@ ggplot(gini_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini
   theme_minimal(base_size = 12)
 
 ```
+
+In order to make the result more stable and reliable, I fit the data with a random forest model. Similar to decision tree, random Forests is also an an intrinsically interpretable model. It's feature importance using the Mean Decrease in Gini Index, which reflects how much each feature contributes to improving node purity across all trees.
+
+This graph presents the Gini-based variable importance from random forest model. Unlike the the single tree model, most of all of top features of random forest are continous and monetary-derived. This is expected because these features directly reflect the customer’s economic relationship with the business, which is often the strongest signal of satisfaction and risk.
+
+Notice that total_charges and tenure_months have higher mean decrease in Gini than average_monthly_charge and monthly_charges. This might indicate that long-term customers tend to have different churn behaviors than newer ones.
+
+Other than top 5 features that are monetary and continous, contract.Month-to-month, internet_service.Fiber optic (the top 2 features of single tree model) have highest mean decrease in Gini.
+
+### Partial Dependence Plot
 
 ```{r}
 train_x = df[, setdiff(names(df), "churn_value")]
@@ -74,7 +88,7 @@ pdp_importance <- pdp_df %>%
   group_by(name) %>%
   summarise(pdp_sd = sd(yhat), .groups = "drop")
 
-# Step 4: Join and reorder factor levels
+
 pdp_df <- pdp_df %>%
   left_join(pdp_importance, by = "name") %>%
   arrange(desc(pdp_sd))
@@ -86,7 +100,7 @@ ggplot(pdp_df, aes(x = value, y = yhat)) +
   geom_line(color = "steelblue") +
   facet_wrap(~ name, scales = "free_x") +
   labs(
-    title = "Partial Dependence Plots Ordered by PDP Effect Size (sd of yhat)",
+    title = "Partial Dependence Plots",
     x = "Feature Value",
     y = "Predicted Churn Probability"
   ) +
@@ -98,12 +112,18 @@ ggplot(pdp_importance, aes(x = reorder(name, pdp_sd), y = pdp_sd)) +
   geom_col(fill = "steelblue") +
   coord_flip() +
   labs(
-    title = "Stdv. of y hat",
-    x = "Name",
+    title = "PDP Importance",
+    x = "Features",
     y = "sd(yhat)"
   ) +
   theme_minimal(base_size = 12)
 ```
+
+To better understand the effect of each feature on predicted churn probability, I apply the Partial Dependence Plots to the random forest model. PDP visualize how the predicted outcome changes as a single feature varies, while all others are held constant. To compare the variable importance with PDP method, I visualize each features by their standard deviation of predicted probabilities (yhat).
+
+Similar to the single tree model, the top 2 features are contract.Month-to-month, internet_service.Fiber optic.
+
+But surprisingly, the top 15 features are all binary categorical features. I realized that for categorical variables (especially binary), the PDP can exaggerate importance due to discrete jumps in predictions.
 
 ```{r}
 is_binary <- function(x) length(unique(x)) == 2 && all(unique(x) %in% c(0, 1))
@@ -131,15 +151,69 @@ ggplot(con_df, aes(x = value, y = yhat)) +
   geom_line(color = "steelblue") +
   facet_wrap(~ name, scales = "free_x") +
   labs(
-    title = "Partial Dependence Plots for Contin",
+    title = "Partial Dependence Plots (continous features)",
     x = "Feature Value",
     y = "Predicted Churn Probability"
   ) +
   theme_minimal(base_size = 12)
 
+ggplot(con_importance, aes(x = reorder(name, pdp_sd), y = pdp_sd)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "PDP Importance (continous features)",
+    x = "Features",
+    y = "sd(yhat)"
+  ) +
+  theme_minimal(base_size = 12)
 ```
 
+Then, I conducted a separate PDP analysis for continuous features only to avoid distortion by binary features. I noticed that cltv has higher importance than other monetary features, which is very different from the result of the gini based importance. I was wondering maybe this is because those monetary features are correlated. And PDP's results might be mislead by multicollinarity.
+
 ```{r}
+ct_df0 = df|> select(-c("tenure_months", "monthly_charges", "avg_monthly_charge"))
+
+ct_rf = randomForest(churn_value ~ ., data = ct_df0, importance = TRUE)
+  
+ct_var = c("cltv", "total_charges")
+
+ct_df = map(ct_var, function(x)partial(ct_rf, pred.var = x))|>
+  map_dfr(pivot_longer, cols =1)
+
+ct_importance <- ct_df %>%
+  group_by(name) %>%
+  summarise(pdp_sd = sd(yhat), .groups = "drop")
+
+ggplot(ct_df, aes(x = value, y = yhat)) +
+  geom_line(color = "steelblue") +
+  facet_wrap(~ name, scales = "free_x") +
+  labs(
+    title = "Partial Dependence Plots (cltv & total_charges)",
+    x = "Feature Value",
+    y = "Predicted Churn Probability"
+  ) +
+  theme_minimal(base_size = 12)
+
+ggplot(ct_importance, aes(x = reorder(name, pdp_sd), y = pdp_sd)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "PDP Importance (cltv & total_charges)",
+    x = "Features",
+    y = "sd(yhat)"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+Therefore, I drop all the correlated monetary features expected total_charges (with the highest Gini-based variable importance), then fit another model and apply PDP with this dataset. Although, the sd(yhat) of total_charges almost doubled but it is still much less than the sd(yhat) of cltv. Maybe other than multicollinearity and binary features, there are something else causing the large difference between PDP and Gini-based importance.
+
+### Permutation-Based Variable Importance
+
+To better handle the binary features, I used permutation-based methods to compute variable importance. Permutation importance are  measured by shuffling the values of a feature and see how much does it harm the model’s predictive performance. Since the predicted varible is binary and imbalanced, I decided to use "accuracy" and "roc_auc" as my metric.
+
+```{r}
+train_x = df[, setdiff(names(df), "churn_value")]
+
 # Define prediction wrapper to return predicted class labels
 pred_class = function(object, newdata) {
   factor(predict(object, newdata = newdata, type = "response"), levels = c(0, 1))
@@ -155,6 +229,10 @@ vip(rf_model,
     nsim = 10,                  
     num_features = ncol(train_x))     
 ```
+The tenure_months, contract.Month.to.month, and total_charges, internet_service.Fiber.optic, monthly_charges are the top 5 most important predictors of the "accuracy". These features cause the greatest drop in model accuracy when they are shuffled. Interestingly, the top 5 features this time include both continous and binary features. And the thoes 5 features are in the top 5 feature list of either Gini of PDP.
+
+
+
 
 ```{r}
 # Generate VIP plot using roc
@@ -170,10 +248,10 @@ vip(rf_model,
     num_features = ncol(train_x))
 
 ```
+The x-axis of the "roc_auc" graph is negative. It is counterintuitive because how can the model performace improves after shuffling the values of feature. 
 
 ```{r}
 
-train_x = df[, setdiff(names(df), "churn_value")]
 
 # Generate VIP plot using roc
 vip(rf_model,
